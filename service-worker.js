@@ -1,4 +1,4 @@
-const CACHE_NAME = "gridledger-v22";
+const CACHE_NAME = "gridledger-v23";
 const CORE_ASSETS = [
   "./",
   "./index.html",

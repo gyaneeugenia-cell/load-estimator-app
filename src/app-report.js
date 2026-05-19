@@ -11,6 +11,8 @@ import { buildStudy, createCustomRow } from "./lib/calculator.js";
 
 const DEFAULT_TARIFF_PROFILE = structuredClone(TARIFF_PROFILES[0]);
 const AUTH_TOKEN_KEY = "gridledger-auth-token-v1";
+const LOCAL_AUTH_USERS_KEY = "gridledger-local-auth-users-v1";
+const LOCAL_AUTH_SESSIONS_KEY = "gridledger-local-auth-sessions-v1";
 
 const state = {
   nextRowId: 1,
@@ -266,19 +268,157 @@ async function apiFetch(path, options = {}) {
     headers.Authorization = `Bearer ${state.authToken}`;
   }
 
-  const response = await fetch(path, {
-    ...options,
-    headers,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.error ?? "Request failed.");
+  try {
+    const response = await fetch(path, {
+      ...options,
+      headers,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 404 && String(path).startsWith("/api/")) {
+        return localApiFetch(path, options);
+      }
+      throw new Error(payload.error ?? "Request failed.");
+    }
+    return payload;
+  } catch (error) {
+    if (String(path).startsWith("/api/")) {
+      return localApiFetch(path, options);
+    }
+    throw error;
   }
-  return payload;
 }
 
 function formDataObject(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function readLocalJson(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "") ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function localPublicUser(user) {
+  if (!user) return null;
+  const { password, ...publicUser } = user;
+  return publicUser;
+}
+
+function makeLocalToken() {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi?.randomUUID) return `local_${cryptoApi.randomUUID()}`;
+  return `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function getLocalBody(options = {}) {
+  if (!options.body) return {};
+  try {
+    return JSON.parse(options.body);
+  } catch {
+    return {};
+  }
+}
+
+function getLocalCurrentUser() {
+  if (!state.authToken?.startsWith("local_")) return null;
+  const sessions = readLocalJson(LOCAL_AUTH_SESSIONS_KEY, []);
+  const session = sessions.find((entry) => entry.token === state.authToken && new Date(entry.expiresAt).getTime() > Date.now());
+  if (!session) return null;
+  const users = readLocalJson(LOCAL_AUTH_USERS_KEY, []);
+  return users.find((user) => user.id === session.userId) ?? null;
+}
+
+function createLocalSession(userId) {
+  const sessions = readLocalJson(LOCAL_AUTH_SESSIONS_KEY, []);
+  const token = makeLocalToken();
+  sessions.push({
+    token,
+    userId,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+  });
+  writeLocalJson(LOCAL_AUTH_SESSIONS_KEY, sessions);
+  return token;
+}
+
+async function localApiFetch(path, options = {}) {
+  const method = String(options.method ?? "GET").toUpperCase();
+  const body = getLocalBody(options);
+  const users = readLocalJson(LOCAL_AUTH_USERS_KEY, []);
+
+  if (method === "GET" && path === "/api/tariff") {
+    return { tariffProfile: structuredClone(DEFAULT_TARIFF_PROFILE) };
+  }
+
+  if (method === "POST" && path === "/api/auth/register") {
+    const name = String(body.name ?? "").trim();
+    const email = String(body.email ?? "").trim().toLowerCase();
+    const password = String(body.password ?? "");
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
+      throw new Error("Enter a name, valid email and password of at least 8 characters.");
+    }
+    if (users.some((user) => user.email === email)) {
+      throw new Error("A user with this email already exists.");
+    }
+    const user = {
+      id: `local_user_${Date.now()}`,
+      name,
+      email,
+      password,
+      role: "user",
+      status: "active",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    users.push(user);
+    writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
+    const token = createLocalSession(user.id);
+    return { token, user: localPublicUser(user) };
+  }
+
+  if (method === "POST" && path === "/api/auth/login") {
+    const email = String(body.email ?? "").trim().toLowerCase();
+    const password = String(body.password ?? "");
+    const user = users.find((entry) => entry.email === email && entry.password === password && entry.status === "active");
+    if (!user) throw new Error("Invalid email or password.");
+    const token = createLocalSession(user.id);
+    return { token, user: localPublicUser(user) };
+  }
+
+  if (method === "POST" && path === "/api/auth/logout") {
+    const sessions = readLocalJson(LOCAL_AUTH_SESSIONS_KEY, []).filter((entry) => entry.token !== state.authToken);
+    writeLocalJson(LOCAL_AUTH_SESSIONS_KEY, sessions);
+    return { ok: true };
+  }
+
+  if (method === "GET" && path === "/api/auth/me") {
+    return { user: localPublicUser(getLocalCurrentUser()) };
+  }
+
+  if (method === "POST" && path === "/api/auth/forgot-password") {
+    return {
+      message: "For this review link, create a new account or sign in with the password used on this browser.",
+      resetToken: "",
+    };
+  }
+
+  if (method === "POST" && path === "/api/auth/reset-password") {
+    throw new Error("Password reset is not available on the static review link. Create a new review account instead.");
+  }
+
+  if (String(path).startsWith("/api/admin")) {
+    return path.includes("/tariff")
+      ? { tariffProfile: structuredClone(DEFAULT_TARIFF_PROFILE) }
+      : { users: users.map(localPublicUser) };
+  }
+
+  throw new Error("This feature is not available on the static review link.");
 }
 
 function setAuthSession(token, user) {

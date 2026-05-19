@@ -10,3 +10,5 @@ data/*.err
 android/.idea/
 android/app/build/
 android/build/
+.npx-cache/
+.netlify-npx-cache/
