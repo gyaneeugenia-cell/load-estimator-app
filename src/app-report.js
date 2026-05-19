@@ -332,7 +332,8 @@ function getLocalCurrentUser() {
   const session = sessions.find((entry) => entry.token === state.authToken && new Date(entry.expiresAt).getTime() > Date.now());
   if (!session) return null;
   const users = readLocalJson(LOCAL_AUTH_USERS_KEY, []);
-  return users.find((user) => user.id === session.userId) ?? null;
+  const user = users.find((entry) => entry.id === session.userId) ?? null;
+  return promoteLocalAdminIfNeeded(users, user);
 }
 
 function createLocalSession(userId) {
@@ -345,6 +346,16 @@ function createLocalSession(userId) {
   });
   writeLocalJson(LOCAL_AUTH_SESSIONS_KEY, sessions);
   return token;
+}
+
+function promoteLocalAdminIfNeeded(users, preferredUser = null) {
+  if (users.some((user) => user.role === "admin")) return preferredUser;
+  const adminUser = preferredUser ?? users[0] ?? null;
+  if (!adminUser) return preferredUser;
+  adminUser.role = "admin";
+  adminUser.updatedAt = new Date().toISOString();
+  writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
+  return preferredUser ?? adminUser;
 }
 
 async function localApiFetch(path, options = {}) {
@@ -371,7 +382,7 @@ async function localApiFetch(path, options = {}) {
       name,
       email,
       password,
-      role: "user",
+      role: users.length === 0 ? "admin" : "user",
       status: "active",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -387,6 +398,7 @@ async function localApiFetch(path, options = {}) {
     const password = String(body.password ?? "");
     const user = users.find((entry) => entry.email === email && entry.password === password && entry.status === "active");
     if (!user) throw new Error("Invalid email or password.");
+    promoteLocalAdminIfNeeded(users, user);
     const token = createLocalSession(user.id);
     return { token, user: localPublicUser(user) };
   }
