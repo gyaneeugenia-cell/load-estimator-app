@@ -13,6 +13,11 @@ const DEFAULT_TARIFF_PROFILE = structuredClone(TARIFF_PROFILES[0]);
 const AUTH_TOKEN_KEY = "gridledger-auth-token-v1";
 const LOCAL_AUTH_USERS_KEY = "gridledger-local-auth-users-v1";
 const LOCAL_AUTH_SESSIONS_KEY = "gridledger-local-auth-sessions-v1";
+const LOCAL_TARIFF_PROFILE_KEY = "gridledger-local-tariff-profile-v1";
+const LOCAL_ADMIN_EMAILS = new Set([
+  "gyaneeugenia@gmail.com",
+  "geniaetornam@gmail.com",
+]);
 
 const state = {
   nextRowId: 1,
@@ -333,7 +338,7 @@ function getLocalCurrentUser() {
   if (!session) return null;
   const users = readLocalJson(LOCAL_AUTH_USERS_KEY, []);
   const user = users.find((entry) => entry.id === session.userId) ?? null;
-  return promoteLocalAdminIfNeeded(users, user);
+  return syncLocalUserRole(users, user);
 }
 
 function createLocalSession(userId) {
@@ -348,14 +353,25 @@ function createLocalSession(userId) {
   return token;
 }
 
-function promoteLocalAdminIfNeeded(users, preferredUser = null) {
-  if (users.some((user) => user.role === "admin")) return preferredUser;
-  const adminUser = preferredUser ?? users[0] ?? null;
-  if (!adminUser) return preferredUser;
-  adminUser.role = "admin";
-  adminUser.updatedAt = new Date().toISOString();
+function roleForLocalEmail(email) {
+  return LOCAL_ADMIN_EMAILS.has(String(email ?? "").trim().toLowerCase()) ? "admin" : "user";
+}
+
+function syncLocalUserRole(users, user = null) {
+  if (!user) return null;
+  if (!LOCAL_ADMIN_EMAILS.has(String(user.email ?? "").trim().toLowerCase()) || user.role === "admin") return user;
+  user.role = "admin";
+  user.updatedAt = new Date().toISOString();
   writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
-  return preferredUser ?? adminUser;
+  return user;
+}
+
+function requireLocalAdmin() {
+  const user = getLocalCurrentUser();
+  if (user?.role !== "admin") {
+    throw new Error("Admin access is required.");
+  }
+  return user;
 }
 
 async function localApiFetch(path, options = {}) {
@@ -364,7 +380,7 @@ async function localApiFetch(path, options = {}) {
   const users = readLocalJson(LOCAL_AUTH_USERS_KEY, []);
 
   if (method === "GET" && path === "/api/tariff") {
-    return { tariffProfile: structuredClone(DEFAULT_TARIFF_PROFILE) };
+    return { tariffProfile: readLocalJson(LOCAL_TARIFF_PROFILE_KEY, structuredClone(DEFAULT_TARIFF_PROFILE)) };
   }
 
   if (method === "POST" && path === "/api/auth/register") {
@@ -382,7 +398,7 @@ async function localApiFetch(path, options = {}) {
       name,
       email,
       password,
-      role: users.length === 0 ? "admin" : "user",
+      role: roleForLocalEmail(email),
       status: "active",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -398,7 +414,7 @@ async function localApiFetch(path, options = {}) {
     const password = String(body.password ?? "");
     const user = users.find((entry) => entry.email === email && entry.password === password && entry.status === "active");
     if (!user) throw new Error("Invalid email or password.");
-    promoteLocalAdminIfNeeded(users, user);
+    syncLocalUserRole(users, user);
     const token = createLocalSession(user.id);
     return { token, user: localPublicUser(user) };
   }
@@ -425,9 +441,69 @@ async function localApiFetch(path, options = {}) {
   }
 
   if (String(path).startsWith("/api/admin")) {
-    return path.includes("/tariff")
-      ? { tariffProfile: structuredClone(DEFAULT_TARIFF_PROFILE) }
-      : { users: users.map(localPublicUser) };
+    requireLocalAdmin();
+
+    if (method === "GET" && path === "/api/admin/users") {
+      return { users: users.map(localPublicUser) };
+    }
+
+    if (method === "POST" && path === "/api/admin/users") {
+      const name = String(body.name ?? "").trim();
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const password = String(body.password ?? "");
+      const role = body.role === "admin" ? "admin" : "user";
+      if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
+        throw new Error("Enter a name, valid email and password of at least 8 characters.");
+      }
+      if (users.some((user) => user.email === email)) {
+        throw new Error("A user with this email already exists.");
+      }
+      users.push({
+        id: `local_user_${Date.now()}`,
+        name,
+        email,
+        password,
+        role,
+        status: "active",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
+      return { users: users.map(localPublicUser) };
+    }
+
+    const userMatch = String(path).match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (userMatch && method === "PATCH") {
+      const user = users.find((entry) => entry.id === decodeURIComponent(userMatch[1]));
+      if (!user) throw new Error("User not found.");
+      if (body.name !== undefined) user.name = String(body.name).trim() || user.name;
+      if (body.email !== undefined) {
+        const nextEmail = String(body.email).trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) throw new Error("Enter a valid email.");
+        if (users.some((entry) => entry.id !== user.id && entry.email === nextEmail)) throw new Error("A user with this email already exists.");
+        user.email = nextEmail;
+      }
+      if (body.role !== undefined) user.role = body.role === "admin" ? "admin" : "user";
+      if (body.status !== undefined) user.status = body.status === "inactive" ? "inactive" : "active";
+      user.updatedAt = new Date().toISOString();
+      writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
+      return { user: localPublicUser(user) };
+    }
+
+    if (userMatch && method === "DELETE") {
+      writeLocalJson(LOCAL_AUTH_USERS_KEY, users.filter((entry) => entry.id !== decodeURIComponent(userMatch[1])));
+      return { ok: true };
+    }
+
+    if (method === "GET" && path === "/api/admin/tariff") {
+      return { tariffProfile: readLocalJson(LOCAL_TARIFF_PROFILE_KEY, structuredClone(DEFAULT_TARIFF_PROFILE)) };
+    }
+
+    if (method === "PATCH" && path === "/api/admin/tariff") {
+      const tariffProfile = body.tariffProfile ?? structuredClone(DEFAULT_TARIFF_PROFILE);
+      writeLocalJson(LOCAL_TARIFF_PROFILE_KEY, tariffProfile);
+      return { tariffProfile };
+    }
   }
 
   throw new Error("This feature is not available on the static review link.");
@@ -2492,17 +2568,19 @@ function bindEvents() {
     state.calculationDetailsOpen = !state.calculationDetailsOpen;
     updateCalculationDetailsToggle();
   });
-  document.querySelectorAll("[data-show-password]").forEach((control) => {
-    control.addEventListener("click", () => {
-      const input = document.querySelector(control.dataset.showPassword);
-      if (input instanceof HTMLInputElement) {
-        const shouldShow = input.type === "password";
-        input.type = shouldShow ? "text" : "password";
-        control.classList.toggle("is-visible", shouldShow);
-        control.setAttribute("aria-pressed", String(shouldShow));
-        control.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
-      }
-    });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const control = target.closest("[data-show-password]");
+    if (!(control instanceof HTMLElement)) return;
+    const input = document.querySelector(control.dataset.showPassword);
+    if (input instanceof HTMLInputElement) {
+      const shouldShow = input.type === "password";
+      input.type = shouldShow ? "text" : "password";
+      control.classList.toggle("is-visible", shouldShow);
+      control.setAttribute("aria-pressed", String(shouldShow));
+      control.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+    }
   });
 
   elements.loginForm.addEventListener("submit", async (event) => {

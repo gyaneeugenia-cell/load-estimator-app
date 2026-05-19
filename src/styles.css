@@ -1352,6 +1352,7 @@ textarea {
   position: absolute;
   right: 0.45rem;
   top: 50%;
+  z-index: 3;
   width: 2.25rem;
   height: 2.25rem;
   border: none;
@@ -1369,6 +1370,7 @@ textarea {
 .password-toggle__icon {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 .password-toggle__icon::before {
@@ -5001,9 +5003,20 @@ textarea {
   .auth-view label,
   .auth-view label > span,
   .auth-view input,
+  .auth-view input[type="email"],
+  .auth-view input[type="password"],
+  .auth-view input[type="text"],
   .auth-view input::placeholder,
   .password-field label,
-  .password-field input {
+  .password-field input,
+  .password-field input[type="password"],
+  .password-field input[type="text"],
+  #login-form input,
+  #register-form input,
+  #forgot-form input,
+  #reset-form input {
     color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    caret-color: #000000 !important;
   }
 }
