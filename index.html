@@ -11,7 +11,7 @@
     <title>LOAD ESTIMATOR</title>
     <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./src/styles.css?v=20260519d" />
+    <link rel="stylesheet" href="./src/styles.css?v=20260519e" />
   </head>
   <body>
     <div class="page-shell">
@@ -264,31 +264,47 @@
 
             <div id="auth-forgot-view" class="auth-view" data-auth-view="forgot" hidden>
               <div class="auth-reset-layout">
-              <form id="forgot-form" class="field-grid" method="post" action="javascript:void(0)">
-                <label>
-                  <span>Email</span>
-                  <input name="email" type="email" required />
-                </label>
-              </form>
-              <form id="reset-form" class="field-grid field-grid--nested" method="post" action="javascript:void(0)">
-                <label>
-                  <span>Reset token</span>
-                  <input name="resetToken" type="text" />
-                </label>
-                <div class="password-field">
-                  <label for="reset-password">New password</label>
-                  <div class="password-field__control">
-                    <input id="reset-password" name="password" type="password" minlength="8" />
-                    <button class="password-toggle" type="button" data-show-password="#reset-password" aria-label="Show password" aria-pressed="false">
-                      <span class="password-toggle__icon" aria-hidden="true"></span>
-                    </button>
+                <section class="auth-reset-step">
+                  <div>
+                    <p class="auth-reset-step__label">Step 1</p>
+                    <h3>Generate token</h3>
+                    <p>Enter the account email, then generate a reset token.</p>
                   </div>
-                </div>
-              </form>
-              <div class="auth-reset-actions">
-                <button class="button button--ghost" type="submit" form="forgot-form">Generate reset token</button>
-                <button class="button button--secondary" type="submit" form="reset-form">Reset password</button>
-              </div>
+                  <form id="forgot-form" class="field-grid" method="post" action="javascript:void(0)">
+                    <label>
+                      <span>Account email</span>
+                      <input name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
+                    </label>
+                    <div class="field-grid__wide">
+                      <button class="button button--ghost" type="submit">Generate reset token</button>
+                    </div>
+                  </form>
+                </section>
+                <section class="auth-reset-step">
+                  <div>
+                    <p class="auth-reset-step__label">Step 2</p>
+                    <h3>Set new password</h3>
+                    <p>Use the token from Step 1, then enter a new password.</p>
+                  </div>
+                  <form id="reset-form" class="field-grid field-grid--nested" method="post" action="javascript:void(0)">
+                    <label>
+                      <span>Reset token</span>
+                      <input name="resetToken" type="text" autocomplete="one-time-code" placeholder="Token appears here" required />
+                    </label>
+                    <div class="password-field">
+                      <label for="reset-password">New password</label>
+                      <div class="password-field__control">
+                        <input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required />
+                        <button class="password-toggle" type="button" data-show-password="#reset-password" aria-label="Show password" aria-pressed="false">
+                          <span class="password-toggle__icon" aria-hidden="true"></span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="field-grid__wide">
+                      <button class="button button--secondary" type="submit">Reset password</button>
+                    </div>
+                  </form>
+                </section>
               </div>
             </div>
 
@@ -416,6 +432,6 @@
       </footer>
     </div>
 
-    <script type="module" src="./src/app-report.js?v=20260519d"></script>
+    <script type="module" src="./src/app-report.js?v=20260519e"></script>
   </body>
 </html>

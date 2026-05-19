@@ -14,6 +14,7 @@ const AUTH_TOKEN_KEY = "gridledger-auth-token-v1";
 const LOCAL_AUTH_USERS_KEY = "gridledger-local-auth-users-v1";
 const LOCAL_AUTH_SESSIONS_KEY = "gridledger-local-auth-sessions-v1";
 const LOCAL_TARIFF_PROFILE_KEY = "gridledger-local-tariff-profile-v1";
+const LOCAL_RESET_TOKENS_KEY = "gridledger-local-reset-tokens-v1";
 const LOCAL_ADMIN_EMAILS = new Set([
   "gyaneeugenia@gmail.com",
   "geniaetornam@gmail.com",
@@ -322,6 +323,16 @@ function makeLocalToken() {
   return `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+function makeLocalResetToken() {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(6);
+    cryptoApi.getRandomValues(bytes);
+    return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
+  }
+  return Math.random().toString(36).slice(2, 10).toUpperCase();
+}
+
 function getLocalBody(options = {}) {
   if (!options.body) return {};
   try {
@@ -391,7 +402,7 @@ async function localApiFetch(path, options = {}) {
       throw new Error("Enter a name, valid email and password of at least 8 characters.");
     }
     if (users.some((user) => user.email === email)) {
-      throw new Error("A user with this email already exists.");
+      throw new Error("This email is already registered. Use Sign in, or use Forgot password to reset it.");
     }
     const user = {
       id: `local_user_${Date.now()}`,
@@ -430,14 +441,48 @@ async function localApiFetch(path, options = {}) {
   }
 
   if (method === "POST" && path === "/api/auth/forgot-password") {
+    const email = String(body.email ?? "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error("Enter the email address for the account you want to reset.");
+    }
+    const user = users.find((entry) => entry.email === email && entry.status === "active");
+    if (!user) {
+      throw new Error("No active account with this email exists in this browser. Register it first or ask the admin to create it.");
+    }
+    const resetToken = makeLocalResetToken();
+    const resetTokens = readLocalJson(LOCAL_RESET_TOKENS_KEY, []).filter((entry) => entry.userId !== user.id);
+    resetTokens.push({
+      token: resetToken,
+      userId: user.id,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
+    });
+    writeLocalJson(LOCAL_RESET_TOKENS_KEY, resetTokens);
     return {
-      message: "For this review link, create a new account or sign in with the password used on this browser.",
-      resetToken: "",
+      message: "Reset token generated. It has been placed in Step 2.",
+      resetToken,
     };
   }
 
   if (method === "POST" && path === "/api/auth/reset-password") {
-    throw new Error("Password reset is not available on the static review link. Create a new review account instead.");
+    const resetToken = String(body.resetToken ?? "").trim().toUpperCase();
+    const password = String(body.password ?? "");
+    if (!resetToken || password.length < 8) {
+      throw new Error("Enter the reset token from Step 1 and a new password of at least 8 characters.");
+    }
+    const resetTokens = readLocalJson(LOCAL_RESET_TOKENS_KEY, []);
+    const tokenRecord = resetTokens.find((entry) => entry.token === resetToken && new Date(entry.expiresAt).getTime() > Date.now());
+    const user = tokenRecord ? users.find((entry) => entry.id === tokenRecord.userId) : null;
+    if (!user) {
+      throw new Error("Reset token is invalid or expired. Generate a new token in Step 1.");
+    }
+    user.password = password;
+    user.updatedAt = new Date().toISOString();
+    writeLocalJson(LOCAL_AUTH_USERS_KEY, users);
+    writeLocalJson(LOCAL_RESET_TOKENS_KEY, resetTokens.filter((entry) => entry.token !== resetToken));
+    const sessions = readLocalJson(LOCAL_AUTH_SESSIONS_KEY, []).filter((entry) => entry.userId !== user.id);
+    writeLocalJson(LOCAL_AUTH_SESSIONS_KEY, sessions);
+    return { ok: true };
   }
 
   if (String(path).startsWith("/api/admin")) {
@@ -456,7 +501,7 @@ async function localApiFetch(path, options = {}) {
         throw new Error("Enter a name, valid email and password of at least 8 characters.");
       }
       if (users.some((user) => user.email === email)) {
-        throw new Error("A user with this email already exists.");
+        throw new Error("This email already exists. Edit the existing user in the table below instead of creating it again.");
       }
       users.push({
         id: `local_user_${Date.now()}`,
@@ -2639,8 +2684,14 @@ function bindEvents() {
         method: "POST",
         body: JSON.stringify(formDataObject(elements.forgotForm)),
       });
+      const tokenInput = elements.resetForm.querySelector("[name='resetToken']");
+      if (payload.resetToken && tokenInput instanceof HTMLInputElement) {
+        tokenInput.value = payload.resetToken;
+        tokenInput.focus();
+        tokenInput.select();
+      }
       setAuthNotice(payload.resetToken
-        ? `${payload.message} Token: ${payload.resetToken}`
+        ? `${payload.message} Reset token: ${payload.resetToken}`
         : payload.message, "info");
     } catch (error) {
       setAuthNotice(error.message);
@@ -2656,6 +2707,8 @@ function bindEvents() {
         body: JSON.stringify(formDataObject(elements.resetForm)),
       });
       setAuthNotice("Password reset successfully. Sign in with the new password.", "success");
+      elements.resetForm.reset();
+      setAuthMode("login");
     } catch (error) {
       setAuthNotice(error.message);
     }
