@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+*.jks
+data/app-db.json
+data/*.log
+data/*.err
+android/.idea/
+android/app/build/
+android/build/

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Load Estimator</string>
+    <string name="title_activity_main">Load Estimator</string>
+    <string name="package_name">com.loadestimator.mobile</string>
+    <string name="custom_url_scheme">com.loadestimator.mobile</string>
+</resources>

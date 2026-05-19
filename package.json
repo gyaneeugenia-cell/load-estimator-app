@@ -1,0 +1,24 @@
+{
+  "name": "gridledger-load-estimator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "mobile:sync": "npm run build && npx cap sync",
+    "mobile:android": "npm run build && npx cap sync android",
+    "mobile:ios": "npm run build && npx cap sync ios",
+    "mobile:open:android": "npx cap open android",
+    "mobile:open:ios": "npx cap open ios",
+    "serve": "node scripts/dev-server.mjs",
+    "start": "node scripts/dev-server.mjs",
+    "test": "node tests/calculator.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
+    "pg": "^8.20.0"
+  }
+}

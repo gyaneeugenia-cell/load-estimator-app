@@ -1,0 +1,17 @@
+{
+  "name": "Load Estimator",
+  "short_name": "Load Estimator",
+  "description": "Professional electrical load estimation for Ghanaian residential, commercial and SLT planning.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2eee7",
+  "theme_color": "#102538",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

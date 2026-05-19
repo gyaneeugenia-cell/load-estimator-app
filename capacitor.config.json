@@ -1,0 +1,9 @@
+{
+  "appId": "com.loadestimator.mobile",
+  "appName": "Load Estimator",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

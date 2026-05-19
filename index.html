@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Professional room and facility load estimator for residential, commercial and special load tariff planning."
+    />
+    <meta name="theme-color" content="#102538" />
+    <title>LOAD ESTIMATOR</title>
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/styles.css?v=20260516a" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="masthead">
+        <div class="masthead__intro">
+          <span class="masthead__bolt" aria-hidden="true"></span>
+          <div>
+            <h1>LOAD ESTIMATOR</h1>
+            <p>Electrical Load Analysis &amp; Estimation Platform</p>
+          </div>
+        </div>
+        <div class="masthead__circuit" aria-hidden="true"></div>
+
+        <nav class="tab-nav" aria-label="Estimator sections">
+          <button class="tab-button is-active" type="button" data-tab="auth">
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Account</span>
+          </button>
+          <button class="tab-button" type="button" data-tab="loads" disabled>
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7l0-7Z"/></svg>
+            <span>Loads</span>
+          </button>
+          <button class="tab-button" type="button" data-tab="results" disabled>
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20V8"/></svg>
+            <span>Results</span>
+          </button>
+          <button class="tab-button" type="button" data-tab="tariff" disabled>
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9h9"/><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+            <span>Total Bill Breakdown</span>
+          </button>
+          <button class="tab-button" type="button" data-tab="admin" hidden>
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-5"/></svg>
+            <span>Admin</span>
+          </button>
+        </nav>
+      </header>
+
+      <main class="tab-shell">
+        <section class="tab-panel" data-panel="loads" hidden>
+          <article class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Load Entry</p>
+                <h2>Loads</h2>
+              </div>
+            </div>
+
+            <div class="action-cluster action-cluster--roomy">
+              <label class="inline-control">
+                <span>Library item</span>
+                <select id="preset-selector"></select>
+              </label>
+              <button id="add-preset-btn" type="button" class="button button--secondary">Add item</button>
+
+              <button id="add-row-btn" type="button" class="button">Add custom load</button>
+            </div>
+
+            <details class="details-card">
+              <summary>Load study settings</summary>
+              <form id="site-form" class="field-grid field-grid--nested">
+                <label>
+                  <span>Customer category</span>
+                  <select id="customer-category" name="customerCategory">
+                    <option value="auto">Auto-classify</option>
+                    <option value="residential">Residential</option>
+                    <option value="non_residential">Non-Residential</option>
+                    <option value="slt">SLT</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Phase preference</span>
+                  <select id="phase-preference" name="phasePreference">
+                    <option value="auto">Auto-select</option>
+                    <option value="single">Prefer 1-phase LV</option>
+                    <option value="three">Prefer 3-phase LV</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Default power factor for custom loads</span>
+                  <input id="default-pf" name="defaultPowerFactor" type="number" min="0.4" max="1" step="0.01" value="0.9" />
+                </label>
+                <label>
+                  <span>Sizing reserve (%)</span>
+                  <input id="growth-margin" name="growthMargin" type="number" min="0" max="100" step="1" value="15" />
+                </label>
+                <label>
+                  <span>Voltage stability</span>
+                  <select id="voltage-stability" name="voltageStability">
+                    <option value="stable">Stable supply</option>
+                    <option value="unstable">Unstable / fluctuating supply</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Main cable run length (m)</span>
+                  <input id="main-run-length" name="mainRunLengthM" type="number" min="0" step="1" placeholder="Optional" />
+                </label>
+                <label>
+                  <span>Voltage-drop check basis</span>
+                  <select id="voltage-drop-basis" name="voltageDropBasis">
+                    <option value="power">Power / appliance / feeder circuit (5% limit)</option>
+                    <option value="lighting">Lighting circuit (3% limit)</option>
+                    <option value="legacy">Legacy whole-installation screen (4% limit)</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Default days / month</span>
+                  <input id="default-days" name="defaultDaysPerMonth" type="number" min="1" max="31" step="1" value="30" />
+                </label>
+              </form>
+            </details>
+
+            <div id="load-list" class="load-list"></div>
+          </article>
+        </section>
+
+        <section class="tab-panel" data-panel="results" hidden>
+          <div class="results-layout">
+            <article class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Calculated Result</p>
+                  <h2>Load Summary</h2>
+                </div>
+                <p id="timestamp" class="panel__microcopy"></p>
+              </div>
+              <div id="summary-cards" class="summary-grid"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Meter And Feeder Decision</p>
+                  <h2>Recommendation</h2>
+                </div>
+              </div>
+              <div id="recommendation-card" class="recommendation-card"></div>
+            </article>
+
+            <button id="calculation-details-toggle" type="button" class="button button--secondary calculation-details-toggle">
+              View Calculation Details and Notes
+            </button>
+
+            <article id="calculation-details-panel" class="panel panel--full calculation-details-panel" hidden>
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">How Results Were Calculated</p>
+                  <h2>Calculation Details</h2>
+                </div>
+              </div>
+              <div id="summary-details" class="calculation-details"></div>
+            </article>
+
+            <article class="panel panel--full load-mix-panel">
+              <div class="panel__header load-mix-panel__header">
+                <div>
+                  <p class="panel__eyebrow">Load Mix</p>
+                  <h2>Category Breakdown</h2>
+                  <p class="panel__microcopy">See which category is driving the total load.</p>
+                </div>
+              </div>
+              <div id="breakdown-bars" class="breakdown-bars"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="tariff" hidden>
+          <article class="panel">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Bill Result</p>
+                <h2>Total Bill Breakdown</h2>
+              </div>
+            </div>
+            <div id="tariff-summary" class="tariff-summary"></div>
+          </article>
+        </section>
+
+        <section class="tab-panel" data-panel="auth">
+          <div class="account-dashboard-shell">
+            <article class="panel auth-card">
+            <div class="auth-hero">
+              <div>
+                <p id="auth-page-title" class="auth-page-title">SIGN IN PAGE</p>
+                <h2 id="auth-welcome-title">Welcome back</h2>
+                <p id="auth-hero-subtitle" class="auth-hero-subtitle">Access your Load Estimator workspace.</p>
+              </div>
+              <div class="auth-animation" aria-hidden="true">
+                <svg class="auth-power-icon" viewBox="0 0 64 64" focusable="false">
+                  <circle class="auth-power-donut" cx="32" cy="32" r="26" />
+                  <path class="auth-power-ring" d="M21.1 22.4a18 18 0 1 0 21.8 0" />
+                  <path class="auth-power-line" d="M32 13v22" />
+                </svg>
+              </div>
+            </div>
+
+            <div id="auth-status" class="auth-status" role="status" hidden></div>
+
+            <nav class="auth-mode-tabs" aria-label="Account options">
+              <button class="auth-mode-button is-active" type="button" data-auth-mode="login">Sign in</button>
+              <button class="auth-mode-button" type="button" data-auth-mode="register">Register</button>
+              <button class="auth-mode-button" type="button" data-auth-mode="forgot">Forgot password</button>
+              <button class="auth-mode-button" type="button" data-auth-mode="signout" hidden>Sign out</button>
+            </nav>
+
+            <div id="auth-login-view" class="auth-view" data-auth-view="login">
+              <form id="login-form" class="field-grid" method="post" action="javascript:void(0)">
+                <label class="field-grid__wide">
+                  <span>Email</span>
+                  <input name="email" type="email" autocomplete="email" required />
+                </label>
+                <div class="password-field">
+                  <label for="login-password">Password</label>
+                  <div class="password-field__control">
+                    <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+                    <button class="password-toggle" type="button" data-show-password="#login-password" aria-label="Show password" aria-pressed="false">
+                      <span class="password-toggle__icon" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field-grid__wide">
+                  <button class="button" type="submit">Sign in</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="auth-register-view" class="auth-view" data-auth-view="register" hidden>
+              <form id="register-form" class="field-grid" method="post" action="javascript:void(0)">
+                <label>
+                  <span>Name</span>
+                  <input name="name" type="text" autocomplete="name" required />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="email" type="email" autocomplete="email" required />
+                </label>
+                <div class="password-field">
+                  <label for="register-password">Password</label>
+                  <div class="password-field__control">
+                    <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="8" required />
+                    <button class="password-toggle" type="button" data-show-password="#register-password" aria-label="Show password" aria-pressed="false">
+                      <span class="password-toggle__icon" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field-grid__wide">
+                  <button class="button button--secondary" type="submit">Create account</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="auth-forgot-view" class="auth-view" data-auth-view="forgot" hidden>
+              <div class="auth-reset-layout">
+              <form id="forgot-form" class="field-grid" method="post" action="javascript:void(0)">
+                <label>
+                  <span>Email</span>
+                  <input name="email" type="email" required />
+                </label>
+              </form>
+              <form id="reset-form" class="field-grid field-grid--nested" method="post" action="javascript:void(0)">
+                <label>
+                  <span>Reset token</span>
+                  <input name="resetToken" type="text" />
+                </label>
+                <div class="password-field">
+                  <label for="reset-password">New password</label>
+                  <div class="password-field__control">
+                    <input id="reset-password" name="password" type="password" minlength="8" />
+                    <button class="password-toggle" type="button" data-show-password="#reset-password" aria-label="Show password" aria-pressed="false">
+                      <span class="password-toggle__icon" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+              <div class="auth-reset-actions">
+                <button class="button button--ghost" type="submit" form="forgot-form">Generate reset token</button>
+                <button class="button button--secondary" type="submit" form="reset-form">Reset password</button>
+              </div>
+              </div>
+            </div>
+
+            <div id="auth-signout-view" class="auth-view" data-auth-view="signout" hidden>
+              <div id="account-summary" class="notes-list"></div>
+              <button id="sign-out-btn" class="button button--ghost" type="button">
+                <span class="sign-out-icon" aria-hidden="true"></span>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="admin" hidden>
+          <div class="admin-layout">
+            <nav class="admin-mode-tabs" aria-label="Admin options">
+              <button class="admin-mode-button is-active" type="button" data-admin-mode="users">User Management</button>
+              <button class="admin-mode-button" type="button" data-admin-mode="tariff">Tariff Control</button>
+            </nav>
+
+            <article class="panel panel--full" data-admin-view="users">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Administration</p>
+                  <h2>User Management</h2>
+                </div>
+              </div>
+              <form id="admin-create-user-form" class="field-grid" method="post" action="javascript:void(0)">
+                <label>
+                  <span>Name</span>
+                  <input name="name" type="text" required />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="email" type="email" required />
+                </label>
+                <div class="password-field">
+                  <label for="admin-user-password">Password</label>
+                  <div class="password-field__control">
+                    <input id="admin-user-password" name="password" type="password" minlength="8" required />
+                    <button class="password-toggle" type="button" data-show-password="#admin-user-password" aria-label="Show password" aria-pressed="false">
+                      <span class="password-toggle__icon" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+                <label>
+                  <span>Role</span>
+                  <select name="role">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                <div class="field-grid__wide">
+                  <button class="button" type="submit">Create user</button>
+                </div>
+              </form>
+              <div id="admin-users" class="table-wrap admin-table"></div>
+            </article>
+
+            <article class="panel panel--full" data-admin-view="tariff" hidden>
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Tariff Control</p>
+                  <h2>Update Tariff</h2>
+                </div>
+              </div>
+              <form id="admin-tariff-form" class="field-grid" method="post" action="javascript:void(0)"></form>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <section id="print-report" class="print-report" aria-hidden="true"></section>
+
+      <div id="user-info-modal" class="user-info-modal" role="dialog" aria-modal="true" aria-labelledby="user-info-title" hidden>
+        <div class="user-info-modal__backdrop" aria-hidden="true"></div>
+        <article class="user-info-modal__card">
+          <div class="user-info-modal__scroll">
+            <section class="user-info-section">
+              <h2 id="user-info-title">How To Use This App</h2>
+              <p class="user-info-section__lead">This app helps you estimate both electrical sizing and monthly energy use from the same load study.</p>
+              <p>It can help you understand:</p>
+              <ul>
+                <li>The likely meter/service type needed</li>
+                <li>The recommended main breaker size</li>
+                <li>The estimated cable size</li>
+                <li>The expected peak demand in kW and kVA</li>
+                <li>The estimated monthly energy use in kWh</li>
+                <li>The estimated monthly electricity bill</li>
+                <li>The appliances contributing most to your load and bill</li>
+              </ul>
+            </section>
+
+            <section class="user-info-section">
+              <h2>How It Works</h2>
+              <h3>LOADS</h3>
+              <ul>
+                <li>Add appliances from the library or create custom loads. Adjust quantity, rated power, power factor, and daily usage hours where needed. Duty cycle is generated automatically by the app based on the appliance type.</li>
+                <li>Select unstable supply only if the site often experiences low voltage or voltage fluctuations. This makes the app use a stricter energy estimate for cooling appliances.</li>
+                <li>Leave main cable run length at optional or you can enter the one-way length of the cable route you want the app to check for voltage drop.</li>
+                <li>Use 5% for general power, appliance, and feeder checks. Use 3% for lighting circuits. Use 4% only when a project or standard specifically requires a whole-installation voltage-drop limit.</li>
+              </ul>
+            </section>
+
+            <section class="user-info-section">
+              <h3>RESULT</h3>
+              <p>Review connected load, sizing load, kVA, breaker size, cable size, and monthly energy.</p>
+              <h3>TOTAL BILL BREAKDOWN</h3>
+              <p>See the tariff-based monthly bill estimate and energy charge breakdown.</p>
+            </section>
+          </div>
+          <button id="user-info-ok-btn" class="user-info-modal__ok" type="button">OK</button>
+        </article>
+      </div>
+
+      <footer class="footer">
+        <p class="footer__copy">&copy; 2026 Load Estimator. All rights reserved.</p>
+        <div class="footer__actions">
+          <button id="export-load-data-btn" type="button" class="button button--secondary" disabled hidden>Export Load Item data</button>
+          <button id="print-btn" type="button" class="button button--secondary" disabled hidden>Print report</button>
+        </div>
+        <p id="save-status" class="footer__status">Enterprise access ready.</p>
+        <p class="footer__version">Version 2.1.0 <span></span> Secure Connection</p>
+      </footer>
+    </div>
+
+    <script type="module" src="./src/app-report.js?v=20260516a"></script>
+  </body>
+</html>
